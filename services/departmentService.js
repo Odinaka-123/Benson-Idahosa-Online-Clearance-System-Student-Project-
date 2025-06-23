@@ -417,24 +417,19 @@ export async function searchStudents(query, { departmentId } = {}) {
   return json.data || json;
 }
 
-// Backend: Find student by _id, studentId, or matricNumber (safe for non-ObjectId)
-const mongoose = require("mongoose");
-const Student = require("../models/Student");
+// Use ES module imports at the top
+import mongoose from "mongoose";
+import Student from "../models/Student.js";
 
-async function getStudentByIdBackend(studentId) {
+// Backend: Find student by _id, studentId, or matricNumber (safe for non-ObjectId)
+export async function getStudentByIdBackend(studentId) {
   let orConditions = [
     { studentId: studentId },
     { matricNumber: studentId },
   ];
-  // Only add _id if valid ObjectId
   if (mongoose.Types.ObjectId.isValid(studentId)) {
     orConditions.unshift({ _id: studentId });
   }
   let student = await Student.findOne({ $or: orConditions }).populate("userId");
   return student;
 }
-
-module.exports = {
-  // ...existing exports...
-  getStudentByIdBackend,
-};
