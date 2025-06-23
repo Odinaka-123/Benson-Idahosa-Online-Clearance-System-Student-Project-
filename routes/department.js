@@ -247,4 +247,20 @@ router.post("/search-student", async (req, res) => {
   }
 });
 
+// Fetch a student by ID
+router.get("/students/:studentId", async (req, res) => {
+  try {
+    // Use the backend-specific function to avoid frontend/backend conflicts
+    const student = await departmentService.getStudentByIdBackend(req.params.studentId);
+    if (!student) {
+      console.warn(`[WARN] Student not found for id: ${req.params.studentId}`);
+      return res.status(404).json({ error: "Student not found" });
+    }
+    res.json({ success: true, data: student });
+  } catch (err) {
+    console.error(`[ERROR] /students/:studentId:`, err);
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
 module.exports = router;
