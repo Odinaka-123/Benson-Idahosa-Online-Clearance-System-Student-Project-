@@ -17,7 +17,7 @@ class DepartmentService {
    */
   async getDashboard() {
     try {
-      const data = await apiUtils.get("/department/")
+      const data = await apiUtils.get("/department/dashboard-summary")
       return data
     } catch (error) {
       console.error("Failed to fetch department dashboard:", error)
@@ -391,3 +391,28 @@ class DepartmentService {
 // Create and export singleton instance
 const departmentService = new DepartmentService()
 export default departmentService
+
+export async function getStudentById(studentId) {
+  const res = await fetch(`/api/department/students/${studentId}`);
+  if (!res.ok) throw new Error("Failed to fetch student");
+  const json = await res.json();
+  return json.data || json;
+}
+
+export async function getRecentStudents({ limit = 20 } = {}) {
+  const res = await fetch(`/api/department/recent-students?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch students");
+  const json = await res.json();
+  return json.data || json;
+}
+
+export async function searchStudents(query, { departmentId } = {}) {
+  const res = await fetch(`/api/department/search-student`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, departmentId })
+  });
+  if (!res.ok) throw new Error("Failed to search students");
+  const json = await res.json();
+  return json.data || json;
+}

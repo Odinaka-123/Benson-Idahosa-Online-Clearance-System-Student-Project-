@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken")
 const crypto = require("crypto")
 const User = require("../models/User")
 const Student = require("../models/Student")
+const Department = require("../models/Department")
 const authMiddleware = require("../middleware/authMiddleware")
 const { validate } = require("../middleware/validation")
 const { authLimiter, strictLimiter } = require("../middleware/rateLimiter")
@@ -31,6 +32,9 @@ router.post("/login", authLimiter, validate("login"), async (req, res) => {
   try {
     const { email, password, role, rememberMe } = req.body
 
+    // Debug: Log incoming login payload
+    console.log("LOGIN ATTEMPT:", { email, role })
+
     // Find user by email and role
     const user = await User.findOne({
       email: email.toLowerCase(),
@@ -38,12 +42,16 @@ router.post("/login", authLimiter, validate("login"), async (req, res) => {
       isActive: true,
     })
 
+    // Debug: Log user found or not
     if (!user) {
+      console.log("LOGIN FAILED: User not found", { email, role })
       audit("LOGIN_FAILED", null, { email, role, reason: "User not found" })
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
       })
+    } else {
+      console.log("LOGIN USER FOUND:", user.email, user.role)
     }
 
     // Check if account is locked
@@ -57,6 +65,7 @@ router.post("/login", authLimiter, validate("login"), async (req, res) => {
 
     // Check password
     const isMatch = await user.comparePassword(password)
+    console.log("PASSWORD CHECK:", { input: password, hash: user.password, isMatch })
 
     if (!isMatch) {
       // Increment login attempts
@@ -233,6 +242,51 @@ router.post(
     }
   }
 )
+
+// @route   POST /api/auth/register-department
+// @desc    Register a new department
+// @access  Public
+router.post("/register-department", async (req, res) => {
+  try {
+    const { departmentName, departmentCode, email, password } = req.body;
+    if (!departmentName || !departmentCode || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    // Check if department already exists
+    const existing = await Department.findOne({ code: departmentCode });
+    if (existing) {
+      return res.status(400).json({ message: "Department code already exists" });
+    }
+    // Create department (add more fields as needed)
+    const newDept = new Department({
+      name: departmentName,
+      code: departmentCode,
+      email,
+      faculty: "General", // You can update this to accept from frontend
+      isActive: true,
+    });
+    await newDept.save();
+
+    // Also create a User record for department login
+    // Pass plain password, let User model hash it
+    const user = new User({
+      email,
+      password, // plain password
+      role: "department",
+      isActive: true,
+      fullName: departmentName,
+      firstName: departmentName, // Use department name as first name
+      lastName: departmentCode,  // Use department code as last name
+      departmentId: newDept._id, // Link to department
+    });
+    await user.save();
+
+    res.status(201).json({ message: "Department registered successfully" });
+  } catch (err) {
+      console.error("Register Department Error:", err); // Add this line
+      res.status(500).json({ message: "Server error", error: err.message });
+  }
+})
 
 // @route   POST /api/auth/refresh-token
 // @desc    Refresh access token

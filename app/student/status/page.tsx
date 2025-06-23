@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { useRouter } from "next/navigation";
-import Header from "@/components/shared/Header";
 
 /**
  * Status Tracking Page
@@ -104,7 +103,6 @@ export default function StatusTracking() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
       <main className="max-w-3xl mx-auto py-8 px-4">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">
           Clearance Status

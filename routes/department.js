@@ -67,4 +67,184 @@ router.patch("/clearance-requests/:id/reject", async (req, res) => {
   }
 });
 
+// Fetch all departments (for /api/departments)
+router.get("/", async (req, res) => {
+  try {
+    const departments = await departmentService.getAllDepartments();
+    res.json(departments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Department statistics (for dashboard)
+router.get("/stats", async (req, res) => {
+  try {
+    // Example: Calculate stats from Clearance and Student models
+    const Clearance = require("../models/Clearance");
+    const Student = require("../models/Student");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayApprovals = await Clearance.countDocuments({ status: "approved", updatedAt: { $gte: today, $lt: tomorrow } });
+    const todayRejections = await Clearance.countDocuments({ status: "rejected", updatedAt: { $gte: today, $lt: tomorrow } });
+    const totalStudents = await Student.countDocuments();
+    const pendingCount = await Clearance.countDocuments({ status: "pending" });
+    // Example: Calculate processing rate (approved/total)
+    const totalProcessed = await Clearance.countDocuments({ status: { $in: ["approved", "rejected"] } });
+    const processingRate = totalProcessed > 0 ? Math.round((todayApprovals / totalProcessed) * 100) : 0;
+
+    res.json({ success: true, data: {
+      todayApprovals,
+      todayRejections,
+      totalStudents,
+      pendingCount,
+      processingRate,
+    }});
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Recent students (for dashboard activity)
+router.get("/recent-students", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const Clearance = require("../models/Clearance");
+    // Find recent clearances (approved, rejected, pending)
+    const recent = await Clearance.find({})
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .populate({
+        path: "studentId",
+        populate: { path: "userId", select: "firstName lastName" }
+      });
+    // Map to dashboard format
+    const students = recent.map((clr) => {
+      // Debug: log the studentId object
+      console.log("DEBUG studentId:", JSON.stringify(clr.studentId, null, 2));
+      return {
+        id: clr.studentId?._id || clr.studentId,
+        firstName: clr.studentId?.userId?.firstName || "",
+        lastName: clr.studentId?.userId?.lastName || "",
+        matricNumber: clr.studentId?.matricNumber || "",
+        phone: clr.studentId?.phone || "",
+        status: clr.status,
+        updatedAt: clr.updatedAt,
+      };
+    });
+    res.json({ success: true, data: students });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Pending students (for dashboard)
+router.get("/pending-students", async (req, res) => {
+  try {
+    const Clearance = require("../models/Clearance");
+    // Find pending clearances and populate studentId and userId
+    const pending = await Clearance.find({ status: "pending" })
+      .populate({
+        path: "studentId",
+        populate: { path: "userId", select: "firstName lastName" }
+      });
+    const students = pending.map((clr) => ({
+      id: clr.studentId?._id || clr.studentId,
+      firstName: clr.studentId?.userId?.firstName || "",
+      lastName: clr.studentId?.userId?.lastName || "",
+      matricNumber: clr.studentId?.matricNumber || "",
+      phone: clr.studentId?.phone || "",
+      status: clr.status,
+      updatedAt: clr.updatedAt,
+    }));
+    res.json({ success: true, data: students });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Department dashboard summary (for dashboardData)
+router.get("/dashboard-summary", async (req, res) => {
+  try {
+    const Clearance = require("../models/Clearance");
+    const Student = require("../models/Student");
+    const pendingCount = await Clearance.countDocuments({ status: "pending" });
+    const totalStudents = await Student.countDocuments();
+    res.json({ success: true, data: { pendingCount, totalStudents } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /department/search-student
+router.post("/search-student", async (req, res) => {
+  try {
+    const { query, departmentId } = req.body;
+    const Student = require("../models/Student");
+    if (!query) return res.status(400).json({ success: false, message: "Missing search query" });
+    const q = query.trim().toLowerCase();
+    const regex = new RegExp(q, "i");
+
+    // 1. Search all students (optionally by department)
+    let studentQuery = {};
+    if (departmentId) studentQuery.department = departmentId;
+    let students = await Student.find(studentQuery)
+      .populate({ path: "userId", select: "firstName lastName" });
+    console.log("[DEBUG] All students (populated):", students);
+
+    // 2. Filter students by user name (case-insensitive, partial)
+    let nameMatchedStudents = students.filter(s => {
+      const first = (s.userId?.firstName || "").toLowerCase();
+      const last = (s.userId?.lastName || "").toLowerCase();
+      const full = `${first} ${last}`;
+      const rev = `${last} ${first}`;
+      return first.includes(q) || last.includes(q) || full.includes(q) || rev.includes(q);
+    });
+    console.log("[DEBUG] Students matching name:", nameMatchedStudents);
+
+    // 3. Also search by matricNumber, studentId, phone as before
+    const searchConditions = [
+      { matricNumber: regex },
+      { studentId: regex },
+      { phone: regex }
+    ];
+    const studentFieldQuery = {
+      ...(departmentId && { department: departmentId }),
+      $or: searchConditions,
+    };
+    let fieldMatchedStudents = await Student.find(studentFieldQuery)
+      .populate({ path: "userId", select: "firstName lastName" });
+    console.log("[DEBUG] Students matching matric/phone/studentId:", fieldMatchedStudents);
+
+    // 4. Merge and dedupe
+    const allStudents = [...nameMatchedStudents, ...fieldMatchedStudents];
+    const seen = new Set();
+    const deduped = allStudents.filter(s => {
+      if (!s._id) return true;
+      if (seen.has(s._id.toString())) return false;
+      seen.add(s._id.toString());
+      return true;
+    });
+    console.log("[DEBUG] Deduped students:", deduped);
+
+    const results = deduped.map(student => ({
+      id: student._id,
+      firstName: student.userId?.firstName || "",
+      lastName: student.userId?.lastName || "",
+      matricNumber: student.matricNumber,
+      phone: student.phone,
+      status: student.graduationStatus || "pending",
+      updatedAt: student.updatedAt,
+    }));
+    console.log("[DEBUG] Final results:", results);
+    res.json({ success: true, data: results });
+  } catch (err) {
+    console.error("[ERROR] /search-student:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

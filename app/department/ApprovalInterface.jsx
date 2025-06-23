@@ -1,63 +1,109 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CheckCircle, XCircle, User, FileText, Clock } from "lucide-react"
 import LoadingSpinner from "../../src/components/shared/LoadingSpinner"
-
-// Mock logged-in department head (replace with real auth in production)
-const loggedInDepartment = "Computer Science"
-
-// Mock data for student clearance requests
-const mockRequests = [
-  {
-    id: "REQ-001",
-    studentName: "Alice Johnson",
-    matricNo: "U2021/12345",
-    department: "Computer Science",
-    requestDate: "2025-06-15T10:00:00Z",
-    status: "pending",
-    documentUrl: "https://example.com/docs/clearance-req-001.pdf",
-  },
-  {
-    id: "REQ-002",
-    studentName: "Bob Smith",
-    matricNo: "U2021/54321",
-    department: "Mathematics",
-    requestDate: "2025-06-16T14:30:00Z",
-    status: "pending",
-    documentUrl: "https://example.com/docs/clearance-req-002.pdf",
-  },
-  {
-    id: "REQ-003",
-    studentName: "Carol Lee",
-    matricNo: "U2021/67890",
-    department: "Physics",
-    requestDate: "2025-06-17T09:15:00Z",
-    status: "pending",
-    documentUrl: "https://example.com/docs/clearance-req-003.pdf",
-  },
-]
+import departmentService from "../../src/services/departmentService"
+import { useAuth } from "../../contexts/AuthContext"
 
 const ApprovalInterface = () => {
-  const [requests, setRequests] = useState(mockRequests)
+  const { user } = useAuth()
+  const [requests, setRequests] = useState([])
   const [loadingId, setLoadingId] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Only show requests for the logged-in department
-  const filteredRequests = requests.filter(
-    (req) => req.department === loggedInDepartment
-  )
+  // Fetch clearance requests for the logged-in department
+  useEffect(() => {
+    const fetchRequests = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await departmentService.getPendingStudents()
+        console.log('Fetched pending students:', data)
+        // Try to extract array from common response shapes
+        let requestsArr = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.students)
+          ? data.students
+          : Array.isArray(data?.data)
+          ? data.data
+          : []
+        // Flatten clearance requests by departments
+        let flattened = []
+        for (const req of requestsArr) {
+          if (Array.isArray(req.departments)) {
+            for (const dept of req.departments) {
+              flattened.push({
+                ...req,
+                ...dept,
+                clearanceId: req._id || req.id,
+                studentName: req.studentName || req.name || req.fullName,
+                matricNo: req.matricNo || req.matricNumber,
+                requestDate: req.submittedAt || req.createdAt,
+                documentUrl: req.documentUrl, // adjust if needed
+                id: dept._id?.toString() || `${req._id}-${dept.departmentId}`,
+                status: dept.status,
+                departmentName: dept.departmentName || dept.department,
+                departmentId: dept.departmentId,
+                studentId: req.studentId,
+              })
+            }
+          }
+        }
+        // Helper to get string id from various formats
+        const getIdString = (id) =>
+          typeof id === "string"
+            ? id
+            : id?.$oid
+            ? id.$oid
+            : id?.toString
+            ? id.toString()
+            : "";
+        // Filter by departmentId
+        const filtered = user?.departmentId
+          ? flattened.filter((req) => getIdString(req.departmentId) === getIdString(user.departmentId))
+          : flattened
+        setRequests(filtered)
+      } catch (err) {
+        setError("Failed to load clearance requests.")
+      } finally {
+        setLoading(false)
+      }
+    }
+    if (user?.role === "department") fetchRequests()
+  }, [user])
 
-  const handleAction = (id, action) => {
-    setLoadingId(id)
-    setTimeout(() => {
+  const handleAction = async (req, action) => {
+    setLoadingId(req.id)
+    try {
+      if (action === "approve") {
+        await departmentService.approveStudent({
+          studentId: req.studentId,
+          clearanceId: req.clearanceId,
+          remarks: "Approved by department head.",
+        })
+      } else {
+        await departmentService.rejectStudent({
+          studentId: req.studentId,
+          clearanceId: req.clearanceId,
+          remarks: "Rejected by department head.",
+        })
+      }
       setRequests((prev) =>
-        prev.map((req) =>
-          req.id === id ? { ...req, status: action === "approve" ? "approved" : "rejected" } : req
+        prev.map((r) =>
+          r.id === req.id ? { ...r, status: action === "approve" ? "approved" : "rejected" } : r
         )
       )
+    } catch (err) {
+      setError("Failed to update request status.")
+    } finally {
       setLoadingId(null)
-    }, 1000) // Simulate API delay
+    }
   }
+
+  if (loading) return <LoadingSpinner fullScreen message="Loading clearance requests..." />
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -76,14 +122,14 @@ const ApprovalInterface = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredRequests.map((req) => (
+            {requests.map((req) => (
               <tr key={req.id} className="hover:bg-gray-50 transition">
                 <td className="px-6 py-4 whitespace-nowrap flex items-center gap-2">
                   <User className="w-5 h-5 text-blue-500" />
                   <span className="font-medium text-gray-900">{req.studentName}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-700">{req.matricNo}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-gray-700">{req.department}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-700">{req.departmentName || req.department}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-700">
                   {new Date(req.requestDate).toLocaleDateString()} <Clock className="inline w-4 h-4 ml-1 text-gray-400" />
                 </td>
@@ -118,7 +164,7 @@ const ApprovalInterface = () => {
                   {req.status === "pending" ? (
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => handleAction(req.id, "approve")}
+                        onClick={() => handleAction(req, "approve")}
                         disabled={loadingId === req.id}
                         className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 text-xs font-medium disabled:opacity-60"
                       >
@@ -126,7 +172,7 @@ const ApprovalInterface = () => {
                         Approve
                       </button>
                       <button
-                        onClick={() => handleAction(req.id, "reject")}
+                        onClick={() => handleAction(req, "reject")}
                         disabled={loadingId === req.id}
                         className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 text-xs font-medium disabled:opacity-60"
                       >
@@ -142,7 +188,7 @@ const ApprovalInterface = () => {
             ))}
           </tbody>
         </table>
-        {filteredRequests.length === 0 && (
+        {requests.length === 0 && (
           <div className="p-8 text-center text-gray-500">No clearance requests for your department.</div>
         )}
       </div>

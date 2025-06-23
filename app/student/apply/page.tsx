@@ -3,17 +3,17 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useNotification } from "@/contexts/NotificationContext"
-import Header from "@/components/shared/Header"
 import LoadingSpinner from "@/components/shared/LoadingSpinner"
 import { FileText, Upload, Check, Eye, Plus, Trash2 } from "lucide-react"
+import { apiService } from "@/services/apiService"
 
 // Type definitions
 interface Department {
-  id: string
-  name: string
-  isRequired: boolean
-  requirements: string[]
-  description?: string
+  _id: string;
+  name: string;
+  isRequired: boolean;
+  requirements: string[];
+  description?: string;
 }
 
 interface UploadedFile {
@@ -44,23 +44,56 @@ export default function ClearanceApplication() {
   const [uploadProgress, setUploadProgress] = useState<any>({});
   const [errors, setErrors] = useState<any>({});
 
-  // Mock departments
+  // Departments as per standard clearance
   const mockDepartments: Department[] = [
-    { id: "lib", name: "Library", isRequired: true, requirements: ["Return all borrowed books", "Pay outstanding fines"] },
-    { id: "bursary", name: "Bursary", isRequired: false, requirements: ["Clear all outstanding fees", "Submit fee receipts"] },
-    { id: "academic", name: "Academic Office", isRequired: false, requirements: ["Submit final project", "Complete course evaluation"] },
-    { id: "hostel", name: "Hostel", isRequired: false, requirements: ["Return room keys"] },
+    { id: "hod", name: "Head of Department", isRequired: true, requirements: ["All courses registered and passed, no references/outstanding courses"] },
+    { id: "faculty", name: "Faculty", isRequired: true, requirements: ["Satisfied Faculty requirements for clearance"] },
+    { id: "library", name: "University Library", isRequired: true, requirements: ["All library books returned"] },
+    { id: "campuslife", name: "Campus Life Division", isRequired: true, requirements: ["Met all requirements for Campus Life Division"] },
+    { id: "studentaffairs", name: "Student Affairs", isRequired: true, requirements: ["No disciplinary case, academic outfit returned for NYSC"] },
+    { id: "summerschool", name: "Summer School", isRequired: false, requirements: ["Cleared from Summer School, no outstanding"] },
+    { id: "bursary", name: "Bursary", isRequired: true, requirements: ["All required fees paid, no outstanding fees"] },
+    { id: "alumni", name: "Office of Alumni Relations", isRequired: false, requirements: ["Met all requirements for Alumni Relations"] },
+    { id: "certificate", name: "Certificate Screening Committee", isRequired: true, requirements: ["Credentials screened and not found wanting"] },
   ];
 
   useEffect(() => {
-    setDepartments(mockDepartments);
-    setSelectedDepartments(mockDepartments.filter(d => d.isRequired).map(d => d.id));
-    setLoading(false);
+    const fetchDepartments = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/departments");
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setDepartments(data);
+          setSelectedDepartments(data.filter((d: Department) => d.isRequired).map((d: Department) => d._id));
+        } else {
+          // Use mockDepartments as fallback
+          setDepartments(mockDepartments as any);
+          setSelectedDepartments(mockDepartments.filter((d: any) => d.isRequired).map((d: any) => d.id));
+          showNotification({
+            type: "warning",
+            title: "Using Mock Departments",
+            message: "Could not fetch department list from server. Using default departments.",
+          });
+        }
+      } catch (err) {
+        setDepartments(mockDepartments as any);
+        setSelectedDepartments(mockDepartments.filter((d: any) => d.isRequired).map((d: any) => d.id));
+        showNotification({
+          type: "error",
+          title: "Failed to load departments",
+          message: "Could not fetch department list from server. Using default departments.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDepartments();
+    // eslint-disable-next-line
   }, []);
 
   // Department selection
   const handleDepartmentToggle = (departmentId: string) => {
-    const department = departments.find((d) => d.id === departmentId);
+    const department = departments.find((d) => d._id === departmentId);
     if (department?.isRequired && selectedDepartments.includes(departmentId)) {
       showNotification({
         type: "warning",
@@ -174,13 +207,24 @@ export default function ClearanceApplication() {
     }
     setSubmitting(true);
     try {
-      setTimeout(() => {
-        showNotification({
-          type: "success",
-          title: "Application Submitted",
-          message: "Your clearance application has been submitted successfully",
-        });
-      }, 1000);
+      // Prepare application data
+      const applicationData = {
+        departments: selectedDepartments,
+        clearanceType,
+        documents: uploadedFiles.map(f => f.id), // You may need to adjust this if backend expects file URLs or IDs from upload
+      };
+      // Get token
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+      if (!token) throw new Error("Not authenticated");
+      // Submit to backend
+      await apiService.submitClearanceApplication(applicationData, token);
+      showNotification({
+        type: "success",
+        title: "Application Submitted",
+        message: "Your clearance application has been submitted successfully",
+      });
+      // Optionally redirect or refresh status/dashboard
+      window.location.href = "/student/dashboard";
     } catch (error: any) {
       showNotification({
         type: "error",
@@ -203,7 +247,7 @@ export default function ClearanceApplication() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        {/* <Header /> removed */}
         <div className="flex items-center justify-center py-12">
           <LoadingSpinner size="lg" text="Loading application form..." />
         </div>
@@ -211,9 +255,10 @@ export default function ClearanceApplication() {
     );
   }
 
+  // Main render
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      {/* <Header /> removed */}
       <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Apply for Clearance</h1>
@@ -264,21 +309,21 @@ export default function ClearanceApplication() {
               <h2 className="text-lg font-medium text-gray-900 mb-4">Select Departments *</h2>
               <div className="space-y-4">
                 {departments.map((department) => (
-                  <div key={department.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={department._id} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start">
                       <div className="flex items-center h-5 mt-1">
                         <input
-                          id={`dept-${department.id}`}
+                          id={`dept-${department._id}`}
                           type="checkbox"
-                          checked={selectedDepartments.includes(department.id)}
-                          onChange={() => handleDepartmentToggle(department.id)}
+                          checked={selectedDepartments.includes(department._id)}
+                          onChange={() => handleDepartmentToggle(department._id)}
                           disabled={department.isRequired}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
                         />
                       </div>
                       <div className="ml-3 flex-1">
                         <label
-                          htmlFor={`dept-${department.id}`}
+                          htmlFor={`dept-${department._id}`}
                           className="text-sm font-medium text-gray-900 flex items-center cursor-pointer"
                         >
                           {department.name}
@@ -295,10 +340,10 @@ export default function ClearanceApplication() {
                           <div className="mt-2">
                             <p className="text-xs text-gray-600 mb-2 font-medium">Requirements:</p>
                             <ul className="text-xs text-gray-500 space-y-1">
-                              {department.requirements.map((req: string, index: number) => (
+                              {department.requirements.map((req: any, index: number) => (
                                 <li key={index} className="flex items-center">
                                   <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2 flex-shrink-0" />
-                                  {req}
+                                  {typeof req === 'object' && req !== null ? req.name : req}
                                 </li>
                               ))}
                             </ul>
@@ -406,27 +451,32 @@ export default function ClearanceApplication() {
                 </div>
               )}
             </div>
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || uploading || selectedDepartments.length === 0}
-                className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? (
-                  <>
-                    <LoadingSpinner size="sm" />
-                    <span className="ml-2">Submitting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Submit Application
-                  </>
-                )}
-              </button>
+            {/* Declaration Section */}
+            <div className="mb-8">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Declaration</h2>
+              <p className="text-sm text-gray-700 mb-2">I hereby confirm that the information provided above is true and correct to the best of my knowledge. I understand that any false information may lead to the cancellation of my clearance.</p>
             </div>
           </div>
+        </div>
+        {/* Submit Button */}
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || uploading || selectedDepartments.length === 0}
+            className="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? (
+              <>
+                <LoadingSpinner size="sm" />
+                <span className="ml-2">Submitting...</span>
+              </>
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Submit Application
+              </>
+            )}
+          </button>
         </div>
       </main>
     </div>

@@ -1,6 +1,7 @@
 const express = require("express");
 const studentService = require("../services/studentService");
 const authMiddleware = require("../middleware/authMiddleware");
+const studentController = require("../controllers/studentController");
 const router = express.Router();
 
 // Fetch all students
@@ -120,6 +121,36 @@ router.get("/dashboard", authMiddleware, async (req, res) => {
       recentActivity,
       notifications: formattedNotifications,
       user: user ? { name: user.firstName + ' ' + user.lastName } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add this route for clearance application
+router.post("/clearance/apply", authMiddleware, studentController.submitClearanceApplication);
+
+// Get current student profile (for frontend profile page)
+router.get("/profile", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const Student = require("../models/Student");
+    const User = require("../models/User");
+    // Find the student profile
+    const student = await Student.findOne({ userId });
+    if (!student) return res.status(404).json({ error: "Student profile not found" });
+    // Find the user info
+    const user = await User.findById(userId);
+    res.json({
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || "",
+      email: user?.email || "",
+      studentId: student?.studentId || "",
+      phone: student?.phone || "",
+      departmentId: student?.departmentId || "",
+      level: student?.level || "",
+      role: user?.role || "Student",
+      profilePicUrl: user?.profilePicUrl || ""
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

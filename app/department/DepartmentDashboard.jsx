@@ -21,36 +21,7 @@ import {
   UserX,
   Eye,
 } from "lucide-react"
-
-// MOCK departmentService for development/testing
-const departmentService = {
-  getDashboard: async () => ({
-    pendingCount: 3,
-    totalStudents: 120,
-    // ...add more mock fields as needed
-  }),
-  getDepartmentStats: async ({ period }) => ({
-    period,
-    todayApprovals: 10,
-    todayRejections: 2,
-    totalStudents: 120,
-    processingRate: 75,
-    // ...add more mock stats as needed
-  }),
-  getRecentStudents: async ({ limit }) => [
-    { id: 1, firstName: "Jane", lastName: "Doe", matricNumber: "UCS2021001", phone: "09171234567", status: "pending", updatedAt: new Date().toISOString() },
-    { id: 2, firstName: "John", lastName: "Smith", matricNumber: "UCS2021002", phone: "09179876543", status: "approved", updatedAt: new Date().toISOString() },
-    // ...add more mock students as needed
-  ],
-  formatPhoneNumber: (phone) => {
-    if (!phone) return ""
-    const digits = phone.replace(/\D/g, "")
-    if (digits.startsWith("234") && digits.length === 13) {
-      return `+${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6, 9)} ${digits.substring(9)}`
-    }
-    return phone
-  },
-}
+import departmentService from "../../src/services/departmentService"
 
 /**
  * Department Dashboard Component

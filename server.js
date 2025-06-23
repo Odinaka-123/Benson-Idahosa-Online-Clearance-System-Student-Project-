@@ -113,18 +113,19 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes)
 app.use("/api/student", studentRoutes)
 app.use("/api/department", departmentRoutes)
+app.use("/api/departments", departmentRoutes)
 app.use("/api/admin", adminRoutes)
 
-// 404 handler
+// Global error handler
+app.use(errorHandler)
+
+// 404 handler (should be last)
 app.use("*", (req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",
   })
 })
-
-// Global error handler
-app.use(errorHandler)
 
 const PORT = process.env.PORT || 5000
 

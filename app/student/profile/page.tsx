@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import Header from "@/components/shared/Header";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { useState, useEffect } from "react";
 
@@ -20,16 +19,18 @@ const LEVELS = [
 ];
 
 export default function StudentProfile() {
-  const { user, loading, updateProfile } = useAuth();
+  const { user, loading: authLoading, updateProfile } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    email: user?.email || "",
-    studentId: user?.studentId || "",
-    phone: user?.phone || "",
-    department: user?.departmentId || "",
-    level: user?.level || "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    studentId: "",
+    phone: "",
+    department: "",
+    level: "",
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
@@ -37,10 +38,49 @@ export default function StudentProfile() {
   const [profilePic, setProfilePic] = useState<string>("/placeholder-user.jpg");
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
 
+  // Fetch profile from backend on mount
   useEffect(() => {
-    if (user?.profilePicUrl) {
-      setProfilePic(user.profilePicUrl);
-    }
+    const fetchProfile = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+        const res = await fetch("http://localhost:5000/api/student/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Failed to fetch profile");
+        const data = await res.json();
+        // Log the data to debug field names
+        console.log('Fetched profile data:', data);
+        setProfile(data);
+        setFormData({
+          firstName: data.firstName || data.firstname || data.fname || "",
+          lastName: data.lastName || data.lastname || data.lname || "",
+          email: data.email || "",
+          studentId: data.studentId || data.student_id || data.matricNo || "",
+          phone: data.phone || data.phoneNumber || "",
+          department: data.departmentId || data.department || "",
+          level: data.level || data.classLevel || "",
+        });
+        if (data.profilePicUrl || data.profile_pic_url) setProfilePic(data.profilePicUrl || data.profile_pic_url);
+      } catch (err) {
+        // fallback to user context if fetch fails
+        setProfile(user);
+        setFormData({
+          firstName: user?.firstName || "",
+          lastName: user?.lastName || "",
+          email: user?.email || "",
+          studentId: user?.studentId || "",
+          phone: user?.phone || "",
+          department: user?.departmentId || "",
+          level: user?.level || "",
+        });
+        if (user?.profilePicUrl) setProfilePic(user.profilePicUrl);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+    // eslint-disable-next-line
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +101,7 @@ export default function StudentProfile() {
     setSuccess("");
     try {
       // If profilePicFile exists, upload it (mocked here)
-      let profilePicUrl = user?.profilePicUrl;
+      let profilePicUrl = profile?.profilePicUrl;
       if (profilePicFile) {
         // TODO: Implement actual upload logic
         profilePicUrl = profilePic; // For now, just use preview URL
@@ -76,10 +116,9 @@ export default function StudentProfile() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
         <div className="flex items-center justify-center py-12">
           <LoadingSpinner size="lg" text="Loading profile..." />
         </div>
@@ -87,10 +126,9 @@ export default function StudentProfile() {
     );
   }
 
-  if (!user) {
+  if (!profile) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
         <div className="flex items-center justify-center py-12">
           <div className="bg-white p-8 rounded shadow text-center">
             <h2 className="text-xl font-bold mb-2">Not logged in</h2>
@@ -103,7 +141,6 @@ export default function StudentProfile() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
       <main className="max-w-2xl mx-auto py-8 px-4">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h2>
         <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center">
@@ -139,7 +176,7 @@ export default function StudentProfile() {
                   className="block w-full border rounded px-3 py-2"
                 />
               ) : (
-                <span className="block text-lg font-medium text-gray-900">{user.firstName || "-"}</span>
+                <span className="block text-lg font-medium text-gray-900">{profile.firstName || "-"}</span>
               )}
             </div>
             <div>
@@ -153,12 +190,12 @@ export default function StudentProfile() {
                   className="block w-full border rounded px-3 py-2"
                 />
               ) : (
-                <span className="block text-lg font-medium text-gray-900">{user.lastName || "-"}</span>
+                <span className="block text-lg font-medium text-gray-900">{profile.lastName || "-"}</span>
               )}
             </div>
             <div>
               <span className="block text-gray-500 text-sm mb-1">Email</span>
-              <span className="block text-lg font-medium text-gray-900">{user.email}</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.email}</span>
             </div>
             <div>
               <span className="block text-gray-500 text-sm mb-1">Student ID</span>
@@ -171,7 +208,7 @@ export default function StudentProfile() {
                   className="block w-full border rounded px-3 py-2"
                 />
               ) : (
-                <span className="block text-lg font-medium text-gray-900">{user.studentId || "-"}</span>
+                <span className="block text-lg font-medium text-gray-900">{profile.studentId || "-"}</span>
               )}
             </div>
             <div>
@@ -185,7 +222,7 @@ export default function StudentProfile() {
                   className="block w-full border rounded px-3 py-2"
                 />
               ) : (
-                <span className="block text-lg font-medium text-gray-900">{user.phone || "-"}</span>
+                <span className="block text-lg font-medium text-gray-900">{profile.phone || "-"}</span>
               )}
             </div>
             <div>
@@ -203,7 +240,7 @@ export default function StudentProfile() {
                   ))}
                 </select>
               ) : (
-                <span className="block text-lg font-medium text-gray-900">{user.departmentId || "-"}</span>
+                <span className="block text-lg font-medium text-gray-900">{profile.departmentId || "-"}</span>
               )}
             </div>
             <div>
@@ -221,12 +258,12 @@ export default function StudentProfile() {
                   ))}
                 </select>
               ) : (
-                <span className="block text-lg font-medium text-gray-900">{user.level || "-"}</span>
+                <span className="block text-lg font-medium text-gray-900">{profile.level || "-"}</span>
               )}
             </div>
             <div>
               <span className="block text-gray-500 text-sm mb-1">Role</span>
-              <span className="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold capitalize">{user.role}</span>
+              <span className="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold capitalize">{profile.role}</span>
             </div>
           </div>
           <div className="mt-6 flex gap-4">

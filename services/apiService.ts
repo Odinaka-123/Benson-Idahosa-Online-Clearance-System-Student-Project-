@@ -33,7 +33,7 @@ class ApiService {
     return res.data;
   }
   async submitClearanceApplication(applicationData: any, token: string) {
-    const res = await axios.post(`${API_BASE_URL}/clearance-requests`, applicationData, {
+    const res = await axios.post(`${API_BASE_URL}/student/clearance/apply`, applicationData, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return res.data;

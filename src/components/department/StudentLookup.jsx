@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Link } from "react-router-dom"
 import { useAuth } from "../../contexts/AuthContext"
 import { useNotification } from "../../contexts/NotificationContext"
-import departmentService from "../../services/departmentService"
+import departmentService from "../services/departmentService"
 import LoadingSpinner from "../shared/LoadingSpinner"
 import {
   Search,
