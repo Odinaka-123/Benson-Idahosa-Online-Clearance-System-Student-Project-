@@ -135,10 +135,11 @@ api.interceptors.response.use(
 
 // Helper function to handle API responses consistently
 export const handleApiResponse = (response) => {
-  if (response.data.success) {
-    return response.data.data
+  const data = response && response.data ? response.data : response;
+  if (data && data.success) {
+    return data.data;
   } else {
-    throw new Error(response.data.message || "API request failed")
+    throw new Error((data && data.message) || "API request failed");
   }
 }
 
@@ -171,8 +172,7 @@ export const handleApiError = (error) => {
 
   return {
     type: "client",
-    message: error.response?.data?.message || error.message || "An error occurred",
-    retry: false,
+    message,
     errors: error.response?.data?.errors || [],
   }
 }
@@ -193,6 +193,16 @@ export const apiUtils = {
   post: async (url, data = {}) => {
     try {
       const response = await api.post(url, data)
+      return handleApiResponse(response)
+    } catch (error) {
+      throw handleApiError(error)
+    }
+  },
+
+  // PATCH request with error handling
+  patch: async (url, data = {}) => {
+    try {
+      const response = await api.patch(url, data)
       return handleApiResponse(response)
     } catch (error) {
       throw handleApiError(error)
@@ -237,5 +247,3 @@ export const apiUtils = {
     }
   },
 }
-
-export default api

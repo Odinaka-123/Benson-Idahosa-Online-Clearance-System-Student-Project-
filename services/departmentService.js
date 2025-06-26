@@ -1,3 +1,6 @@
+// Use ES module imports at the very top
+import apiUtils from "../utils/apiUtils.js";
+
 /**
  * Department Service
  * Handles all department-related API calls
@@ -391,7 +394,6 @@ const departmentService = new DepartmentService()
 export default departmentService
 
 // Frontend API fetch functions (for use in React/Next.js)
-// These should only be used in client-side code, not in Node.js server
 export async function getStudentById(studentId) {
   const res = await fetch(`/api/department/students/${studentId}`);
   if (!res.ok) throw new Error("Failed to fetch student");
@@ -415,21 +417,4 @@ export async function searchStudents(query, { departmentId } = {}) {
   if (!res.ok) throw new Error("Failed to search students");
   const json = await res.json();
   return json.data || json;
-}
-
-// Use ES module imports at the top
-import mongoose from "mongoose";
-import Student from "../models/Student.js";
-
-// Backend: Find student by _id, studentId, or matricNumber (safe for non-ObjectId)
-export async function getStudentByIdBackend(studentId) {
-  let orConditions = [
-    { studentId: studentId },
-    { matricNumber: studentId },
-  ];
-  if (mongoose.Types.ObjectId.isValid(studentId)) {
-    orConditions.unshift({ _id: studentId });
-  }
-  let student = await Student.findOne({ $or: orConditions }).populate("userId");
-  return student;
 }

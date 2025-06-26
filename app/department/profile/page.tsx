@@ -3,37 +3,48 @@
 import { useState, useEffect } from "react";
 import { Building, Phone, User, Mail, MapPin } from "lucide-react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-
-// Mock department profile data
-const mockDepartment = {
-  name: "Computer Science",
-  head: "Dr. John Doe",
-  email: "cs-dept@university.edu",
-  phone: "123-456-7890",
-  location: "Block A, Room 101",
-  established: "1992",
-  facultyCount: 35,
-  studentCount: 420,
-  website: "https://cs.university.edu",
-  description: "The Computer Science department focuses on cutting-edge research and teaching in computing.",
-  logoUrl: "/placeholder-logo.png",
-};
+import departmentService from "@/services/departmentService";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function DepartmentProfile() {
-  const [department, setDepartment] = useState<typeof mockDepartment | null>(null);
+  const { user } = useAuth();
+  const [department, setDepartment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState<typeof mockDepartment>(mockDepartment);
+  const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setDepartment(mockDepartment);
-      setForm({ ...mockDepartment });
+    // Fetch department profile from API
+    const fetchDepartment = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        console.log("User:", user);
+        let deptId = user?.departmentId || user?.id;
+        console.log("DepartmentId:", deptId);
+        if (!deptId) throw new Error("No departmentId or user id found for user");
+        const res = await fetch(`/api/department/departments/${deptId}`);
+        if (!res.ok) throw new Error("Failed to fetch department profile");
+        const data = await res.json();
+        setDepartment(data);
+        setForm({ ...data });
+      } catch (err) {
+        setDepartment(null);
+        setForm(null);
+        setError(err.message || "An error occurred loading department profile.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user) fetchDepartment();
+    else {
       setLoading(false);
-    }, 500);
-  }, []);
+      setError("User not loaded. Please log in again.");
+    }
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -48,7 +59,18 @@ export default function DepartmentProfile() {
     }, 800);
   };
 
-  if (loading || !department) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  if (error) return (
+    <div className="max-w-2xl mx-auto p-6 text-center">
+      <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>
+      <button onClick={() => window.location.reload()} className="px-4 py-2 bg-blue-600 text-white rounded">Reload</button>
+    </div>
+  );
+  if (!department) return (
+    <div className="max-w-2xl mx-auto p-6 text-center">
+      <div className="bg-yellow-100 text-yellow-700 p-4 rounded mb-4">No department data found.</div>
+    </div>
+  );
 
   return (
     <div className="max-w-2xl mx-auto p-6">

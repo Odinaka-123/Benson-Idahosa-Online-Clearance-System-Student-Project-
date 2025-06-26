@@ -209,7 +209,7 @@ clearanceSchema.methods.addTimelineEntry = function (action, description, perfor
     metadata,
     timestamp: new Date(),
   })
-  return this.save()
+  // Do NOT call this.save() here!
 }
 
 // Method to update department status
@@ -227,7 +227,7 @@ clearanceSchema.methods.updateDepartmentStatus = function (departmentId, status,
     department.approvedAt = new Date()
   }
 
-  // Add timeline entry
+  // Add timeline entry (just push, don't save)
   this.addTimelineEntry(`department_${status}`, `${department.departmentName} ${status}`, approvedBy, {
     departmentId,
     remarks,

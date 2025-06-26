@@ -274,4 +274,11 @@ departmentSchema.statics.getPerformanceReport = async (startDate, endDate) => {
   ])
 }
 
-module.exports = mongoose.model("Department", departmentSchema)
+let Department
+try {
+  Department = mongoose.models.Department || mongoose.model("Department", departmentSchema)
+} catch (e) {
+  Department = mongoose.model("Department")
+}
+
+module.exports = Department

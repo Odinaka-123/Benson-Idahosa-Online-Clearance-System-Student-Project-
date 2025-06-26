@@ -101,18 +101,18 @@ class DepartmentService {
    */
   async approveStudent(approvalData) {
     try {
-      const data = await apiUtils.post("/department/approve-clearance", {
-        ...approvalData,
-        status: "approved",
-      })
-
-      // Update recent students cache
-      this.updateRecentStudentsCache(approvalData.studentId, "approved")
-
-      return data
+      const { clearanceId, remarks, departmentId, departmentSubdocId, approvedBy, studentId } = approvalData;
+      const data = await apiUtils.patch(`/department/clearance-requests/${clearanceId}/approve`, {
+        departmentId: departmentId, // reference to Department collection
+        departmentSubdocId: departmentSubdocId, // subdocument _id in clearance.departments
+        approvedBy: approvedBy, // optional, can be user._id
+        remarks: remarks || "Approved by department head."
+      });
+      this.updateRecentStudentsCache(studentId, "approved");
+      return data;
     } catch (error) {
-      console.error("Failed to approve student:", error)
-      throw error
+      console.error("Failed to approve student:", error);
+      throw error;
     }
   }
 
@@ -129,16 +129,12 @@ class DepartmentService {
       if (!rejectionData.remarks || rejectionData.remarks.trim().length < 10) {
         throw new Error("Rejection reason must be at least 10 characters long")
       }
-
-      const data = await apiUtils.post("/department/reject-clearance", {
-        ...rejectionData,
-        status: "rejected",
-      })
-
-      // Update recent students cache
-      this.updateRecentStudentsCache(rejectionData.studentId, "rejected")
-
-      return data
+      const { clearanceId, remarks } = rejectionData;
+      const data = await apiUtils.patch(`/department/clearance-requests/${clearanceId}/reject`, {
+        comment: remarks
+      });
+      this.updateRecentStudentsCache(rejectionData.studentId, "rejected");
+      return data;
     } catch (error) {
       console.error("Failed to reject student:", error)
       throw error

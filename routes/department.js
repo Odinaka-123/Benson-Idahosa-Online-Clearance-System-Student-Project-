@@ -1,22 +1,26 @@
 const express = require("express");
 const departmentService = require("../services/departmentService");
+// Use the correct backend file for all backend logic
+const departmentServiceBackend = require("../services/departmentService.server.js");
 const clearanceService = require("../services/clearanceService");
 const router = express.Router();
 
 // Fetch all departments
 router.get("/departments", async (req, res) => {
   try {
-    const departments = await departmentService.getAllDepartments();
+    const departments = await departmentServiceBackend.getAllDepartments();
     res.json(departments);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("/departments error:", err); // Log full error
+    res.status(500).json({ error: err.message, stack: err.stack }); // Return stack for debugging
   }
 });
 
 // Fetch a department profile by ID
 router.get("/departments/:id", async (req, res) => {
   try {
-    const department = await departmentService.getDepartmentById(req.params.id);
+    // Use the backend-only service for backend logic
+    const department = await departmentServiceBackend.getDepartmentById(req.params.id);
     if (!department) return res.status(404).json({ error: "Department not found" });
     res.json(department);
   } catch (err) {
@@ -48,11 +52,21 @@ router.get("/clearance-requests", async (req, res) => {
 // Approve a clearance request
 router.patch("/clearance-requests/:id/approve", async (req, res) => {
   try {
-    const request = await clearanceService.approveClearanceRequest(req.params.id, req.body.comment);
-    if (!request) return res.status(404).json({ error: "Request not found" });
-    res.json(request);
+    const { departmentId, departmentSubdocId, approvedBy, remarks } = req.body;
+    if (!departmentId && !departmentSubdocId) {
+      return res.status(400).json({ success: false, message: "departmentId or departmentSubdocId is required" });
+    }
+    const request = await clearanceService.approveClearanceRequest(
+      req.params.id,
+      departmentId,
+      departmentSubdocId,
+      approvedBy,
+      remarks
+    );
+    if (!request) return res.status(404).json({ success: false, message: "Request not found" });
+    res.json({ success: true, data: request });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -60,20 +74,10 @@ router.patch("/clearance-requests/:id/approve", async (req, res) => {
 router.patch("/clearance-requests/:id/reject", async (req, res) => {
   try {
     const request = await clearanceService.rejectClearanceRequest(req.params.id, req.body.comment);
-    if (!request) return res.status(404).json({ error: "Request not found" });
-    res.json(request);
+    if (!request) return res.status(404).json({ success: false, message: "Request not found" });
+    res.json({ success: true, data: request });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Fetch all departments (for /api/departments)
-router.get("/", async (req, res) => {
-  try {
-    const departments = await departmentService.getAllDepartments();
-    res.json(departments);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -145,22 +149,23 @@ router.get("/recent-students", async (req, res) => {
 router.get("/pending-students", async (req, res) => {
   try {
     const Clearance = require("../models/Clearance");
-    // Find pending clearances and populate studentId and userId
-    const pending = await Clearance.find({ status: "pending" })
+    // Find clearances where at least one department is still pending
+    const pending = await Clearance.find({ "departments.status": "pending" })
       .populate({
         path: "studentId",
         populate: { path: "userId", select: "firstName lastName" }
       });
-    const students = pending.map((clr) => ({
-      id: clr.studentId?._id || clr.studentId,
-      firstName: clr.studentId?.userId?.firstName || "",
-      lastName: clr.studentId?.userId?.lastName || "",
-      matricNumber: clr.studentId?.matricNumber || "",
-      phone: clr.studentId?.phone || "",
-      status: clr.status,
-      updatedAt: clr.updatedAt,
-    }));
-    res.json({ success: true, data: students });
+    // Ensure departmentId is always a string for frontend filtering
+    pending.forEach(clr => {
+      if (Array.isArray(clr.departments)) {
+        clr.departments.forEach(dept => {
+          if (dept.departmentId && typeof dept.departmentId !== 'string') {
+            dept.departmentId = dept.departmentId.toString();
+          }
+        });
+      }
+    });
+    res.json({ success: true, data: pending });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -251,12 +256,20 @@ router.post("/search-student", async (req, res) => {
 router.get("/students/:studentId", async (req, res) => {
   try {
     // Use the backend-specific function to avoid frontend/backend conflicts
-    const student = await departmentService.getStudentByIdBackend(req.params.studentId);
+    const student = await departmentServiceBackend.getStudentByIdBackend(req.params.studentId);
     if (!student) {
       console.warn(`[WARN] Student not found for id: ${req.params.studentId}`);
       return res.status(404).json({ error: "Student not found" });
     }
-    res.json({ success: true, data: student });
+    // Populate all user fields if userId is populated
+    let studentObj = student.toObject();
+    if (studentObj.userId && studentObj.userId._id) {
+      // Optionally, fetch the full user document if needed
+      const User = require("../models/User");
+      const userDoc = await User.findById(studentObj.userId._id).lean();
+      if (userDoc) studentObj.userId = userDoc;
+    }
+    res.json({ success: true, data: studentObj });
   } catch (err) {
     console.error(`[ERROR] /students/:studentId:`, err);
     res.status(500).json({ error: err.message, stack: err.stack });

@@ -69,16 +69,14 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 app.use("/uploads", express.static("uploads"))
 
 // Database connection
-mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/clearance_system", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+const dbConnect = require('./lib/db')
+
+dbConnect()
   .then(() => {
-    logger.info("Connected to MongoDB")
+    logger.info('Connected to MongoDB')
   })
   .catch((error) => {
-    logger.error("MongoDB connection error:", error)
+    logger.error('MongoDB connection error:', error)
     process.exit(1)
   })
 
@@ -112,8 +110,8 @@ app.get("/health", (req, res) => {
 // API routes
 app.use("/api/auth", authRoutes)
 app.use("/api/student", studentRoutes)
-app.use("/api/department", departmentRoutes)
-app.use("/api/departments", departmentRoutes)
+app.use("/api/department", departmentRoutes) // For department dashboard/statistics endpoints
+app.use("/api", departmentRoutes) // For student endpoints like /api/departments
 app.use("/api/admin", adminRoutes)
 
 // Global error handler

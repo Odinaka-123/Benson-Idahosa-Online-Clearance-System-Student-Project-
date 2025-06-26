@@ -23,7 +23,6 @@ export default function Header() {
           { name: "Dashboard", href: "/student/dashboard" },
           { name: "Apply for Clearance", href: "/student/apply" },
           { name: "Track Status", href: "/student/status" },
-          { name: "Notifications", href: "/student/notifications" },
           { name: "Profile", href: "/student/profile" },
         ]
       case "department":
@@ -55,7 +54,7 @@ export default function Header() {
           {/* Logo */}
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-blue-600">ClearanceHub</h1>
+              <h1 className="text-xl font-bold text-blue-600">BIU Online Clearance System</h1>
             </div>
           </div>
 

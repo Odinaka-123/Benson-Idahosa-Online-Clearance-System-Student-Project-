@@ -149,7 +149,7 @@ const Header = () => {
                 </div>
               </div>
               <div className="ml-3">
-                <h1 className="text-xl font-bold text-gray-900">ClearanceHub</h1>
+                <h1 className="text-xl font-bold text-gray-900">BIU Clearance System</h1>
               </div>
             </Link>
           </div>

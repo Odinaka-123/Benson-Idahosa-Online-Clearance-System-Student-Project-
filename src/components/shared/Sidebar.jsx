@@ -394,7 +394,7 @@ const AppSidebar = ({ unreadCount = 0 }) => {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 truncate">ClearanceHub</h1>
+            <h1 className="text-lg font-bold text-gray-900 truncate">BIU Clearance System</h1>
             <p className="text-xs text-gray-500 truncate">University System</p>
           </div>
         </div>

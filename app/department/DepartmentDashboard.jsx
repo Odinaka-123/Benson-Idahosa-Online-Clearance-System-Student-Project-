@@ -37,6 +37,7 @@ const DepartmentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const [stats, setStats] = useState(null)
   const [recentStudents, setRecentStudents] = useState([])
+  const [allRequests, setAllRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
@@ -58,17 +59,48 @@ const DepartmentDashboard = () => {
   const loadDashboardData = async () => {
     try {
       setError(null)
-
-      // Load dashboard data, stats, and recent students in parallel
-      const [dashboardResponse, statsResponse, recentResponse] = await Promise.all([
+      // Fetch all department clearance requests for accurate stats
+      const [dashboardResponse, statsResponse, recentResponse, allRequestsResponse] = await Promise.all([
         departmentService.getDashboard(),
         departmentService.getDepartmentStats({ period: "today" }),
         departmentService.getRecentStudents({ limit: 5 }),
+        departmentService.getPendingStudents(), // <-- fetch all requests
       ])
-
       setDashboardData(dashboardResponse)
       setStats(statsResponse)
       setRecentStudents(recentResponse)
+      // Flatten and store all requests for stats
+      let requestsArr = Array.isArray(allRequestsResponse)
+        ? allRequestsResponse
+        : Array.isArray(allRequestsResponse?.students)
+        ? allRequestsResponse.students
+        : Array.isArray(allRequestsResponse?.data)
+        ? allRequestsResponse.data
+        : []
+      let flattened = []
+      for (const req of requestsArr) {
+        if (Array.isArray(req.departments)) {
+          for (const dept of req.departments) {
+            flattened.push({
+              ...req,
+              ...dept,
+              clearanceId: req._id || req.id,
+              studentName: req.studentName || req.name || req.fullName,
+              matricNo: req.matricNo || req.matricNumber,
+              requestDate: req.submittedAt || req.createdAt,
+              documentUrl: req.documentUrl,
+              id: dept._id?.toString() || `${req._id}-${dept.departmentId}`,
+              status: dept.status,
+              departmentName: dept.departmentName || dept.department,
+              departmentId: dept.departmentId,
+              departmentSubdocId: dept._id?.toString(),
+              studentId: req.studentId,
+              approvedAt: dept.approvedAt || dept.updatedAt || req.updatedAt,
+            })
+          }
+        }
+      }
+      setAllRequests(flattened)
     } catch (error) {
       console.error("Failed to load dashboard data:", error)
       setError(error.message)
@@ -128,6 +160,23 @@ const DepartmentDashboard = () => {
         return "bg-gray-100 text-gray-800"
     }
   }
+
+  // Compute dashboard stats from allRequests
+  const today = new Date()
+  const isToday = (dateStr) => {
+    if (!dateStr) return false
+    const d = new Date(dateStr)
+    return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate()
+  }
+  const pendingCount = allRequests.filter(r => r.status === "pending").length
+  const todayApprovals = allRequests.filter(r => r.status === "approved" && isToday(r.approvedAt)).length
+
+  // Debug: log user object to check available fields
+  useEffect(() => {
+    if (user) {
+      console.log('DepartmentDashboard user:', user)
+    }
+  }, [user])
 
   if (loading) {
     return (
@@ -195,7 +244,7 @@ const DepartmentDashboard = () => {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Pending Students</dt>
-                    <dd className="text-lg font-medium text-gray-900">{dashboardData?.pendingCount || 0}</dd>
+                    <dd className="text-lg font-medium text-gray-900">{pendingCount}</dd>
                   </dl>
                 </div>
               </div>
@@ -223,7 +272,7 @@ const DepartmentDashboard = () => {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Today's Approvals</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats?.todayApprovals || 0}</dd>
+                    <dd className="text-lg font-medium text-gray-900">{todayApprovals}</dd>
                   </dl>
                 </div>
               </div>
@@ -348,19 +397,23 @@ const DepartmentDashboard = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Department:</span>
-                    <span className="text-sm font-medium text-gray-900">{user?.department}</span>
+                    <span className="text-sm font-medium text-gray-900">{user?.department || user?.departmentName || user?.name || "N/A"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Officer ID:</span>
-                    <span className="text-sm font-medium text-gray-900">{user?.employeeId}</span>
+                    <span className="text-sm font-medium text-gray-900">{user?.employeeId || user?.id || user?._id || "N/A"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Last Login:</span>
                     <span className="text-sm font-medium text-gray-900">
-                      {user?.lastLogin ? formatTime(user.lastLogin) : "N/A"}
+                      {user?.lastLogin || user?.last_login ? formatTime(user.lastLogin || user.last_login) : "N/A"}
                     </span>
                   </div>
                 </div>
+                {/*
+                  If these fields are still empty, check your AuthContext and backend user object
+                  to ensure department, employeeId, and lastLogin are being set after login.
+                */}
               </div>
             </div>
           </div>
@@ -427,7 +480,7 @@ const DepartmentDashboard = () => {
             </div>
 
             {/* Daily Stats Chart Placeholder */}
-            <div className="bg-white shadow rounded-lg mt-6">
+            {/* <div className="bg-white shadow rounded-lg mt-6">
               <div className="px-4 py-5 sm:p-6">
                 <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Daily Statistics</h3>
                 <div className="flex items-center justify-center h-48 bg-gray-50 rounded-lg">
@@ -437,7 +490,7 @@ const DepartmentDashboard = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

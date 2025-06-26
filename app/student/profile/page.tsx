@@ -265,6 +265,58 @@ export default function StudentProfile() {
               <span className="block text-gray-500 text-sm mb-1">Role</span>
               <span className="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold capitalize">{profile.role}</span>
             </div>
+            {/* Additional Student fields */}
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Matric Number</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.matricNumber || "-"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Faculty</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.faculty || "-"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Admission Year</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.admissionYear || "-"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Academic Session</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.academicSession || "-"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">CGPA</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.cgpa !== undefined ? profile.cgpa : "-"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Current Semester</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.currentSemester || "-"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Graduation Status</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.graduationStatus || "-"}</span>
+            </div>
+            {/* Address */}
+            <div className="md:col-span-2">
+              <span className="block text-gray-500 text-sm mb-1">Address</span>
+              <span className="block text-lg font-medium text-gray-900">
+                {profile.address ? `${profile.address.street || ""}, ${profile.address.city || ""}, ${profile.address.state || ""}, ${profile.address.country || ""}` : "-"}
+              </span>
+            </div>
+            {/* Emergency Contact */}
+            <div className="md:col-span-2">
+              <span className="block text-gray-500 text-sm mb-1">Emergency Contact</span>
+              <span className="block text-lg font-medium text-gray-900">
+                {profile.emergencyContact ? `${profile.emergencyContact.name || ""} (${profile.emergencyContact.relationship || ""}) - ${profile.emergencyContact.phone || ""}` : "-"}
+              </span>
+            </div>
+            {/* User fields */}
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Profile Complete</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.profileComplete ? "Yes" : "No"}</span>
+            </div>
+            <div>
+              <span className="block text-gray-500 text-sm mb-1">Last Login</span>
+              <span className="block text-lg font-medium text-gray-900">{profile.lastLogin ? new Date(profile.lastLogin).toLocaleString() : "-"}</span>
+            </div>
           </div>
           <div className="mt-6 flex gap-4">
             {editMode ? (

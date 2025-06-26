@@ -46,24 +46,52 @@ const ApprovalInterface = () => {
                 status: dept.status,
                 departmentName: dept.departmentName || dept.department,
                 departmentId: dept.departmentId,
+                departmentSubdocId: dept._id?.toString(), // <-- add this line
                 studentId: req.studentId,
               })
             }
           }
         }
+        // Debug: log departmentId values for troubleshooting
+        console.log('user:', user);
+        console.log('user.departmentId:', user?.departmentId);
+        console.log('user.department:', user?.department);
+        // New debug logs to inspect backend data structure
+        console.log('requestsArr:', requestsArr);
+        if (requestsArr.length > 0) {
+          for (let i = 0; i < Math.min(3, requestsArr.length); i++) {
+            console.log(`requestsArr[${i}]:`, requestsArr[i]);
+            console.log(`requestsArr[${i}].departments:`, requestsArr[i]?.departments);
+          }
+        }
+        console.log('flattened:', flattened.map(f => ({
+          departmentId: f.departmentId,
+          departmentName: f.departmentName,
+          studentName: f.studentName,
+          status: f.status
+        })));
+
         // Helper to get string id from various formats
         const getIdString = (id) =>
           typeof id === "string"
-            ? id
+            ? id.trim().toLowerCase()
             : id?.$oid
-            ? id.$oid
+            ? id.$oid.trim().toLowerCase()
             : id?.toString
-            ? id.toString()
+            ? id.toString().trim().toLowerCase()
             : "";
-        // Filter by departmentId
-        const filtered = user?.departmentId
-          ? flattened.filter((req) => getIdString(req.departmentId) === getIdString(user.departmentId))
-          : flattened
+        // Robust filter: match by departmentId, departmentName, or user.name (case-insensitive, allow substring match for names)
+        const userDeptIds = [user?.departmentId, user?.department].filter(Boolean).map(getIdString);
+        const userDeptName = user?.name ? getIdString(user.name) : null;
+        const filtered = flattened.filter((req) => {
+          const reqDeptIds = [req.departmentId].map(getIdString);
+          const reqDeptName = req.departmentName ? getIdString(req.departmentName) : null;
+          // Strict ID match
+          if (userDeptIds.length > 0 && reqDeptIds.some(id => userDeptIds.includes(id))) return true;
+          // Substring match for department names
+          if (userDeptName && reqDeptName && (userDeptName.includes(reqDeptName) || reqDeptName.includes(userDeptName))) return true;
+          return false;
+        });
         setRequests(filtered)
       } catch (err) {
         setError("Failed to load clearance requests.")
@@ -75,18 +103,29 @@ const ApprovalInterface = () => {
   }, [user])
 
   const handleAction = async (req, action) => {
+    console.log("DEBUG handleAction:", {
+      clearanceId: req.clearanceId,
+      departmentId: req.departmentId,
+      approvedBy: user?._id,
+      req
+    });
     setLoadingId(req.id)
     try {
       if (action === "approve") {
         await departmentService.approveStudent({
           studentId: req.studentId,
           clearanceId: req.clearanceId,
+          departmentId: req.departmentId, // reference to Department collection
+          departmentSubdocId: req.departmentSubdocId, // subdocument _id in clearance.departments
+          approvedBy: user?._id, // pass user id if available
           remarks: "Approved by department head.",
         })
       } else {
         await departmentService.rejectStudent({
           studentId: req.studentId,
           clearanceId: req.clearanceId,
+          departmentId: req.departmentId, // for consistency, if needed
+          approvedBy: user?._id,
           remarks: "Rejected by department head.",
         })
       }
